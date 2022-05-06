@@ -14,8 +14,8 @@ import src.variables as variables
 
 # Constants
 WEIGHT_AVG_LISTING_PRICE = 25
-WEIGHT_AVG_SALE_PRICE = 60
-WEIGHT_SALE_VELOCITY = 40
+WEIGHT_AVG_SALE_PRICE = 50
+WEIGHT_SALE_VELOCITY = 50
 WEIGHT_MIN_AVG_PRICE_DIFF = 25
 
 def dict_factory(cursor, row):
@@ -27,30 +27,54 @@ def dict_factory(cursor, row):
 
 @sleep_and_retry
 @limits(20, 1)
-def query_universalis(item_id, world_name):
-# Query Universalis at a maximum of 20 calls per second
+def query_item(item_id, world_name):
+# Query XIVAPI and Universalis at a maximum of 20 calls per second
     print(f"Querying Item {item_id}...")
+    entry_data = {}
 
     # Get item name from XIVAPI
+    xiv_request = urllib.Request(f"https://xivapi.com/item/{item_id}?columns=Name")
+    xiv_request.add_header('User-Agent', '&lt;User-Agent&gt;')
     try:
-        xiv_request = urllib.Request(
-            f"https://xivapi.com/item/{item_id}?columns=Name")
-        xiv_request.add_header('User-Agent', '&lt;User-Agent&gt;')
         xiv_data = json.loads(urllib.urlopen(xiv_request).read())
-        print(f"- Found Item {item_id}: {xiv_data['Name']} from XIVAPI...")
     except HTTPError:
         print("- Item not found on XIVAPI. Skipping...")
         return {}
+    entry_data["item_name"] = xiv_data["Name"]
+    print(f"- Found Item {item_id}: {xiv_data['Name']} from XIVAPI...")
 
     # Get listing data from Universalis
-    univ_request = urllib.Request(
-        f"https://universalis.app/api/{world_name}/{item_id}")
-    univ_request.add_header('User-Agent', '&lt;User-Agent&gt;')
-    entry_data = json.loads(urllib.urlopen(univ_request).read())
-    print("- Successfully obtained Universalis data.")
+    listing_request = urllib.Request(
+        f"https://universalis.app/api/{world_name}/{item_id}?entries=100")
+    listing_request.add_header('User-Agent', '&lt;User-Agent&gt;')
+    try:
+        listing_data = json.loads(urllib.urlopen(listing_request).read())
+    except HTTPError:
+        print("- Listing data not found on Universalis. Skipping...")
+        return {}
+    entry_data["currentAveragePriceNQ"] = listing_data["currentAveragePriceNQ"]
+    entry_data["averagePriceNQ"] = listing_data["averagePriceNQ"]
+    entry_data["currentPriceDifferenceNQ"] = listing_data["currentAveragePriceNQ"] - listing_data["minPriceNQ"]
+    entry_data["currentAveragePriceHQ"] = listing_data["currentAveragePriceHQ"]
+    entry_data["averagePriceHQ"] = listing_data["averagePriceHQ"]
+    entry_data["currentPriceDifferenceHQ"] = listing_data["currentAveragePriceHQ"] - listing_data["minPriceHQ"]
+    print("- Successfully obtained listing data from Universalis.")
 
-    # Add item name from XIVAPI and return
-    entry_data["item_name"] = xiv_data["Name"]
+    # Sale velocities are kind of weird, so we need to make a separate request for historical data.
+    sale_request = urllib.Request(f"https://universalis.app/api/history/{world_name}/{item_id}")
+    sale_request.add_header('User-Agent', '&lt;User-Agent&gt;')
+    try:
+        sale_data = json.loads(urllib.urlopen(sale_request).read())
+    except HTTPError:
+        entry_data["nqSaleVelocity"] = 0
+        entry_data["hqSaleVelocity"] = 0
+        print("- Warning: Failed to obtain sale data from Universalis.")
+    else:
+        entry_data["nqSaleVelocity"] = sale_data["nqSaleVelocity"]
+        entry_data["hqSaleVelocity"] = sale_data["hqSaleVelocity"]
+        print("- Successfully obtained historical sale data from Universalis.")
+
+    
     return entry_data
 
 sqlite3.register_adapter(datetime, lambda ts: time.mktime(ts.timetuple()))
@@ -104,6 +128,12 @@ world_name = input("Enter name of World or Data Centre (Default: Faerie): ")
 if len(world_name) < 1:
     world_name = "Faerie"
 
+num_recommendations = 5
+try:
+    num_recommendations = int(input("Enter number of desired recommendations (Default: 5): "))
+except ValueError:
+    pass
+
 # Gathering items don't have high-quality versions anymore, so a lot of those are going to be commented out.
 # I might still use this for other stuff though, so it's not going to be removed entirely.
 
@@ -119,7 +149,7 @@ entry_minmaxes = {
     "velocity_hq": MinMax(),
     "difference_hq": MinMax()}
 for item in items:
-    entry = query_universalis(item["item_id"], world_name)
+    entry = query_item(item["item_id"], world_name)
     if entry == {}:
         continue
     univ_entries.append(entry)
@@ -129,15 +159,13 @@ for item in items:
         entry["currentAveragePriceNQ"])
     entry_minmaxes["sale_price_nq"].add_value(entry["averagePriceNQ"])
     entry_minmaxes["velocity_nq"].add_value(entry["nqSaleVelocity"])
-    entry_minmaxes["difference_nq"].add_value(
-        entry["currentAveragePriceNQ"] - entry["minPriceNQ"])
+    entry_minmaxes["difference_nq"].add_value(entry["currentPriceDifferenceNQ"])
 
     # entry_minmaxes["listing_price_hq"].add_value(
     #     entry["currentAveragePriceHQ"])
     # entry_minmaxes["sale_price_hq"].add_value(entry["averagePriceHQ"])
     # entry_minmaxes["velocity_hq"].add_value(entry["hqSaleVelocity"])
-    # entry_minmaxes["difference_hq"].add_value(
-    #     entry["currentAveragePriceHQ"] - entry["minPriceHQ"])
+    # entry_minmaxes["difference_hq"].add_value(entry["currentPriceDifferenceHQ"])
 
 if len(univ_entries) < 1:
     print("Error: No results found. Exiting...")
@@ -145,23 +173,17 @@ if len(univ_entries) < 1:
 else:
     print(f"Successfully found results for {len(univ_entries)} items.")
 
-num_recommendations = 5
-try:
-    num_recommendations = int(input("Enter number of desired recommendations (Default: 5): "))
-except ValueError:
-    pass
-
 for entry in univ_entries:
     entry["score_nq"] = entry_minmaxes["listing_price_nq"].get_t(
         entry["currentAveragePriceNQ"]) * WEIGHT_AVG_LISTING_PRICE + entry_minmaxes["sale_price_nq"].get_t(
         entry["averagePriceNQ"]) * WEIGHT_AVG_SALE_PRICE + entry_minmaxes["velocity_nq"].get_t(
             entry["nqSaleVelocity"]) * WEIGHT_SALE_VELOCITY + WEIGHT_MIN_AVG_PRICE_DIFF - (entry_minmaxes["difference_nq"].get_t(
-                entry["currentAveragePriceNQ"] - entry["minPriceNQ"]) * WEIGHT_MIN_AVG_PRICE_DIFF)
+                entry["currentPriceDifferenceNQ"]) * WEIGHT_MIN_AVG_PRICE_DIFF)
     # entry["score_hq"] = entry_minmaxes["listing_price_hq"].get_t(
     #     entry["currentAveragePriceHQ"]) * WEIGHT_AVG_LISTING_PRICE + entry_minmaxes["sale_price_hq"].get_t(
     #     entry["averagePriceHQ"]) * WEIGHT_AVG_SALE_PRICE + entry_minmaxes["velocity_hq"].get_t(
     #         entry["hqSaleVelocity"]) * WEIGHT_SALE_VELOCITY + entry_minmaxes["difference_hq"].get_t(
-    #             entry["currentAveragePriceHQ"] - entry["minPriceHQ"]) * WEIGHT_MIN_AVG_PRICE_DIFF
+    #             entry["currentPriceDifferenceHQ"]) * WEIGHT_MIN_AVG_PRICE_DIFF
 
 sorted_nq_raw = sorted(univ_entries, key=lambda entry: entry["score_nq"], reverse=True)[:num_recommendations]
 # sorted_hq_raw = sorted(univ_entries, key=lambda entry: entry["score_hq"])[:5]
@@ -173,7 +195,7 @@ for entry in sorted_nq_raw:
     sorted_nq["Avg. Listing Price"].append(entry["currentAveragePriceNQ"])
     sorted_nq["Avg. Sale Price"].append(entry["averagePriceNQ"])
     sorted_nq["Sales Per Day"].append(entry["nqSaleVelocity"])
-    sorted_nq["Avg - Min Listing Price"].append(entry["currentAveragePriceNQ"] - entry["minPriceNQ"])
+    sorted_nq["Avg - Min Listing Price"].append(entry["currentPriceDifferenceNQ"])
 
 # sorted_hq = {"Name": [], "Avg. Listing Price": [], "Avg. Sale Price": [], "Sales Per Day": [], "Avg - Min Listing Price": []}
 # for entry in sorted_nq_raw:
@@ -181,10 +203,10 @@ for entry in sorted_nq_raw:
 #     sorted_hq["Avg. Listing Price"].append(entry["currentAveragePriceHQ"])
 #     sorted_hq["Avg. Sale Price"].append(entry["averagePriceHQ"])
 #     sorted_hq["Sales Per Day"].append(entry["hqSaleVelocity"])
-#     sorted_hq["Avg - Min Listing Price"].append(entry["currentAveragePriceHQ"] - entry["minPriceHQ"])
+#     sorted_hq["Avg - Min Listing Price"].append(entry["currentPriceDifferenceHQ"])
 
 print("\nRecommended NQ Items:")
-print(tabulate(sorted_nq, headers="keys", tablefmt="fancy_grid"))
+print(tabulate(sorted_nq, headers="keys", tablefmt="fancy_grid", floatfmt=".2f"))
 # print("\nRecommended HQ Items:")
 # print(tabulate(sorted_hq, headers="keys", tablefmt="fancy_grid"))
 
