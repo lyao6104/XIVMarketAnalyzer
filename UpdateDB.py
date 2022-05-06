@@ -39,6 +39,11 @@ else:
 
 gi_ids = list(map(lambda x: x["ID"], gi_data["Results"]))
 
+# Used to check which items are actually marketable from Universalis
+univ_request = urllib.Request("https://universalis.app/api/marketable")
+univ_request.add_header('User-Agent', '&lt;User-Agent&gt;')
+univ_data = set(json.loads(urllib.urlopen(univ_request).read()))
+
 print("Building GatheringItem database...")
 con = sqlite3.connect("market_analyzer.db")
 con.row_factory = dict_factory
@@ -50,8 +55,14 @@ for gi_id in gi_ids:
     gi = query_gathering_item(gi_id)
     if not "name" in gi or not "item_id" in gi or not "gathering_level" in gi:
         continue
-    cur.execute("insert into gathering_items values (?, ?, ?)", (gi["name"], gi["item_id"], gi["gathering_level"]))
-    print(f"- Successfully added Item {gi['item_id']}: {gi['name']}.")
+    if not gi["item_id"] in univ_data:
+        continue
+    try:
+        cur.execute("insert into gathering_items values (?, ?, ?)", (gi["name"], gi["item_id"], gi["gathering_level"]))
+    except sqlite3.IntegrityError:
+        print(f"- Skipping Item {gi['item_id']}: {gi['name']} as ID is taken.")
+    else:
+        print(f"- Successfully added Item {gi['item_id']}: {gi['name']}.")
 
 con.commit()
 
