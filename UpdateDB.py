@@ -1,5 +1,3 @@
-from dataclasses import dataclass
-from urllib.error import HTTPError
 import urllib.request as urllib
 import json
 import sqlite3
