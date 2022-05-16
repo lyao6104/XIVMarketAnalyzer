@@ -20,6 +20,7 @@ def init(path):
             variables_store = json.loads(contents)
     variables_initialized = True
 
+
 def close():
     global variables_path, variables_store, variables_initialized
     if not variables_initialized:
@@ -29,11 +30,13 @@ def close():
     variables_file.close()
     variables_initialized = False
 
+
 def set_variable(key, value):
     global variables_store, variables_initialized
     if not variables_initialized:
         raise Exception("Variable store has not been initialized.")
     variables_store[key] = value
+
 
 def get_variable(key):
     global variables_store, variables_initialized

@@ -27,19 +27,21 @@ ITEM_TYPES = [
 # Utility Functions
 #####
 
+
 def dict_factory(cursor, row):
-# From the sqlite3 documentation
+    # From the sqlite3 documentation
     d = {}
     for idx, col in enumerate(cursor.description):
         d[col[0]] = row[idx]
     return d
 
+
 @sleep_and_retry
 @limits(20, 1)
-def query_items(item_tuples, world_name, batch_size = 20):
-# Query Universalis for multiple items at once at a maximum of 20 calls per second
+def query_items(item_tuples, world_name, batch_size=20):
+    # Query Universalis for multiple items at once at a maximum of 20 calls per second
     batches = []
-    entries = [] # [ { "item_name": item_name } for item_id, item_name in item_tuples ]
+    entries = []  # [ { "item_name": item_name } for item_id, item_name in item_tuples ]
     while len(item_tuples) > 0:
         batches.append(item_tuples[:batch_size])
         item_tuples = item_tuples[batch_size:]
@@ -47,10 +49,12 @@ def query_items(item_tuples, world_name, batch_size = 20):
 
     # Get listing data from Universalis
     for i in range(0, len(batches)):
-        batch = { item_id: item_name for item_id, item_name in batches[i] }
+        batch = {item_id: item_name for item_id, item_name in batches[i]}
         print(f"Querying Universalis for Batch {i + 1}...")
-        listings_request = urllib.Request(f"https://universalis.app/api/{world_name}/{','.join(batch.keys())}?entries=100")
-        listings_request.add_header('User-Agent', '&lt;User-Agent&gt;')
+        listings_request = urllib.Request(
+            f"https://universalis.app/api/{world_name}/{','.join(batch.keys())}?entries=100"
+        )
+        listings_request.add_header("User-Agent", "&lt;User-Agent&gt;")
         try:
             listings_response = json.loads(urllib.urlopen(listings_request).read())
         except HTTPError:
@@ -65,19 +69,30 @@ def query_items(item_tuples, world_name, batch_size = 20):
             print("- Successfully found listing data for all items in batch:")
 
         for listing_data in listings_response["items"]:
-            entry_data = { "item_id": listing_data["itemID"], "item_name": batch[listing_data["itemID"]] }
+            entry_data = {
+                "item_id": listing_data["itemID"],
+                "item_name": batch[listing_data["itemID"]],
+            }
             entry_data["currentAveragePriceNQ"] = listing_data["currentAveragePriceNQ"]
             entry_data["averagePriceNQ"] = listing_data["averagePriceNQ"]
-            entry_data["currentPriceDifferenceNQ"] = listing_data["currentAveragePriceNQ"] - listing_data["minPriceNQ"]
+            entry_data["currentPriceDifferenceNQ"] = (
+                listing_data["currentAveragePriceNQ"] - listing_data["minPriceNQ"]
+            )
             entry_data["currentAveragePriceHQ"] = listing_data["currentAveragePriceHQ"]
             entry_data["averagePriceHQ"] = listing_data["averagePriceHQ"]
-            entry_data["currentPriceDifferenceHQ"] = listing_data["currentAveragePriceHQ"] - listing_data["minPriceHQ"]
+            entry_data["currentPriceDifferenceHQ"] = (
+                listing_data["currentAveragePriceHQ"] - listing_data["minPriceHQ"]
+            )
             entries.append(entry_data)
-            print(f"  - Found listing data for {entry_data['item_id']}: {entry_data['item_name']}")
+            print(
+                f"  - Found listing data for {entry_data['item_id']}: {entry_data['item_name']}"
+            )
 
         # Sale velocities are kind of weird, so we need to make a separate request for historical data.
-        sale_request = urllib.Request(f"https://universalis.app/api/history/{world_name}/{','.join(batch.keys())}")
-        sale_request.add_header('User-Agent', '&lt;User-Agent&gt;')
+        sale_request = urllib.Request(
+            f"https://universalis.app/api/history/{world_name}/{','.join(batch.keys())}"
+        )
+        sale_request.add_header("User-Agent", "&lt;User-Agent&gt;")
         try:
             sale_response = json.loads(urllib.urlopen(sale_request).read())
         # A 404 response should only happen if the world name is wrong
@@ -110,24 +125,30 @@ def query_items(item_tuples, world_name, batch_size = 20):
         }
         for i in range(0, len(entries)):
             if entries[i].get("nqSaleVelocity") is None:
-                entries[i]["nqSaleVelocity"] = sale_data[entries[i]["item_id"]]["nqSaleVelocity"]
+                entries[i]["nqSaleVelocity"] = sale_data[entries[i]["item_id"]][
+                    "nqSaleVelocity"
+                ]
             if entries[i].get("hqSaleVelocity") is None:
-                entries[i]["hqSaleVelocity"] = sale_data[entries[i]["item_id"]]["hqSaleVelocity"]
-    
+                entries[i]["hqSaleVelocity"] = sale_data[entries[i]["item_id"]][
+                    "hqSaleVelocity"
+                ]
+
     return entries
+
 
 @sleep_and_retry
 @limits(20, 1)
 def query_item(item_tuple, world_name):
-# Query Universalis at a maximum of 20 calls per second
+    # Query Universalis at a maximum of 20 calls per second
     item_id, item_name = item_tuple
     print(f"Querying Item {item_id}: {item_name}...")
-    entry_data = { "item_name": item_name }
+    entry_data = {"item_name": item_name}
 
     # Get listing data from Universalis
     listing_request = urllib.Request(
-        f"https://universalis.app/api/{world_name}/{item_id}?entries=100")
-    listing_request.add_header('User-Agent', '&lt;User-Agent&gt;')
+        f"https://universalis.app/api/{world_name}/{item_id}?entries=100"
+    )
+    listing_request.add_header("User-Agent", "&lt;User-Agent&gt;")
     try:
         listing_data = json.loads(urllib.urlopen(listing_request).read())
     except HTTPError:
@@ -135,15 +156,21 @@ def query_item(item_tuple, world_name):
         return {}
     entry_data["currentAveragePriceNQ"] = listing_data["currentAveragePriceNQ"]
     entry_data["averagePriceNQ"] = listing_data["averagePriceNQ"]
-    entry_data["currentPriceDifferenceNQ"] = listing_data["currentAveragePriceNQ"] - listing_data["minPriceNQ"]
+    entry_data["currentPriceDifferenceNQ"] = (
+        listing_data["currentAveragePriceNQ"] - listing_data["minPriceNQ"]
+    )
     entry_data["currentAveragePriceHQ"] = listing_data["currentAveragePriceHQ"]
     entry_data["averagePriceHQ"] = listing_data["averagePriceHQ"]
-    entry_data["currentPriceDifferenceHQ"] = listing_data["currentAveragePriceHQ"] - listing_data["minPriceHQ"]
+    entry_data["currentPriceDifferenceHQ"] = (
+        listing_data["currentAveragePriceHQ"] - listing_data["minPriceHQ"]
+    )
     print("- Successfully obtained listing data from Universalis.")
 
     # Sale velocities are kind of weird, so we need to make a separate request for historical data.
-    sale_request = urllib.Request(f"https://universalis.app/api/history/{world_name}/{item_id}")
-    sale_request.add_header('User-Agent', '&lt;User-Agent&gt;')
+    sale_request = urllib.Request(
+        f"https://universalis.app/api/history/{world_name}/{item_id}"
+    )
+    sale_request.add_header("User-Agent", "&lt;User-Agent&gt;")
     try:
         sale_data = json.loads(urllib.urlopen(sale_request).read())
     except HTTPError:
@@ -155,8 +182,8 @@ def query_item(item_tuple, world_name):
         entry_data["hqSaleVelocity"] = sale_data["hqSaleVelocity"]
         print("- Successfully obtained historical sale data from Universalis.")
 
-    
     return entry_data
+
 
 #####
 # Main Program
@@ -172,7 +199,12 @@ variables.init(pathlib.Path("./variables.json").resolve())
 last_update_time = variables.get_variable("lastUpdateTime")
 if last_update_time is None:
     last_update_time = str(datetime.now())
-flag_update_db = input(f"Item database was last updated at {last_update_time}. Update database (y/N)? ").lower() == "y"
+flag_update_db = (
+    input(
+        f"Item database was last updated at {last_update_time}. Update database (y/N)? "
+    ).lower()
+    == "y"
+)
 if flag_update_db:
     last_update_time = str(datetime.now())
 variables.set_variable("lastUpdateTime", last_update_time)
@@ -183,7 +215,9 @@ while selected_item_type < 0 or selected_item_type >= len(ITEM_TYPES):
     for i in range(1, len(ITEM_TYPES) + 1):
         print(f"  {i}. {ITEM_TYPES[i - 1]}")
     try:
-        selected_item_type = int(input(f"Enter your selection (1 to {len(ITEM_TYPES)}): ")) - 1
+        selected_item_type = (
+            int(input(f"Enter your selection (1 to {len(ITEM_TYPES)}): ")) - 1
+        )
     except ValueError:
         print("Please enter a number.")
 items = []
@@ -191,7 +225,12 @@ items = []
 # Gathering
 if selected_item_type == 0:
     # Check whether gathering database exists
-    if cur.execute("select count(name) as count from gathering_items").fetchone()['count'] < 1:
+    if (
+        cur.execute("select count(name) as count from gathering_items").fetchone()[
+            "count"
+        ]
+        < 1
+    ):
         print("Error: Gathering item database is empty. Exiting...")
         exit()
     else:
@@ -218,13 +257,20 @@ if selected_item_type == 0:
 
     items = cur.execute(
         "select item_id, item_name from gathering_items where gathering_level >= ? and gathering_level <= ?",
-        (min_level,
-        max_level)).fetchall()
-    print(f"Found {len(items)} gatherable items between Level {min_level} and Level {max_level}")
+        (min_level, max_level),
+    ).fetchall()
+    print(
+        f"Found {len(items)} gatherable items between Level {min_level} and Level {max_level}"
+    )
 # Paintings
 elif selected_item_type == 1:
     # Check whether paintings database exists
-    if cur.execute("select count(name) as count from painting_items").fetchone()['count'] < 1:
+    if (
+        cur.execute("select count(name) as count from painting_items").fetchone()[
+            "count"
+        ]
+        < 1
+    ):
         print("Error: Paintings database is empty. Exiting...")
         exit()
     else:
@@ -239,7 +285,9 @@ if len(world_name) < 1:
 
 num_recommendations = 5
 try:
-    num_recommendations = int(input("Enter number of desired recommendations (Default: 5): "))
+    num_recommendations = int(
+        input("Enter number of desired recommendations (Default: 5): ")
+    )
 except ValueError:
     pass
 
@@ -256,7 +304,8 @@ entry_minmaxes = {
     "listing_price_hq": MinMax(),
     "sale_price_hq": MinMax(),
     "velocity_hq": MinMax(),
-    "difference_hq": MinMax()}
+    "difference_hq": MinMax(),
+}
 for item in items:
     entry = query_item(item["item_id"], world_name)
     if entry == {}:
@@ -264,8 +313,7 @@ for item in items:
     univ_entries.append(entry)
     entry = univ_entries[len(univ_entries) - 1]
 
-    entry_minmaxes["listing_price_nq"].add_value(
-        entry["currentAveragePriceNQ"])
+    entry_minmaxes["listing_price_nq"].add_value(entry["currentAveragePriceNQ"])
     entry_minmaxes["sale_price_nq"].add_value(entry["averagePriceNQ"])
     entry_minmaxes["velocity_nq"].add_value(entry["nqSaleVelocity"])
     entry_minmaxes["difference_nq"].add_value(entry["currentPriceDifferenceNQ"])
@@ -283,22 +331,38 @@ else:
     print(f"Successfully found results for {len(univ_entries)} items.")
 
 for entry in univ_entries:
-    entry["score_nq"] = entry_minmaxes["listing_price_nq"].get_t(
-        entry["currentAveragePriceNQ"]) * WEIGHT_AVG_LISTING_PRICE + entry_minmaxes["sale_price_nq"].get_t(
-        entry["averagePriceNQ"]) * WEIGHT_AVG_SALE_PRICE + entry_minmaxes["velocity_nq"].get_t(
-            entry["nqSaleVelocity"]) * WEIGHT_SALE_VELOCITY + WEIGHT_MIN_AVG_PRICE_DIFF - (entry_minmaxes["difference_nq"].get_t(
-                entry["currentPriceDifferenceNQ"]) * WEIGHT_MIN_AVG_PRICE_DIFF)
+    entry["score_nq"] = (
+        entry_minmaxes["listing_price_nq"].get_t(entry["currentAveragePriceNQ"])
+        * WEIGHT_AVG_LISTING_PRICE
+        + entry_minmaxes["sale_price_nq"].get_t(entry["averagePriceNQ"])
+        * WEIGHT_AVG_SALE_PRICE
+        + entry_minmaxes["velocity_nq"].get_t(entry["nqSaleVelocity"])
+        * WEIGHT_SALE_VELOCITY
+        + WEIGHT_MIN_AVG_PRICE_DIFF
+        - (
+            entry_minmaxes["difference_nq"].get_t(entry["currentPriceDifferenceNQ"])
+            * WEIGHT_MIN_AVG_PRICE_DIFF
+        )
+    )
     # entry["score_hq"] = entry_minmaxes["listing_price_hq"].get_t(
     #     entry["currentAveragePriceHQ"]) * WEIGHT_AVG_LISTING_PRICE + entry_minmaxes["sale_price_hq"].get_t(
     #     entry["averagePriceHQ"]) * WEIGHT_AVG_SALE_PRICE + entry_minmaxes["velocity_hq"].get_t(
     #         entry["hqSaleVelocity"]) * WEIGHT_SALE_VELOCITY + entry_minmaxes["difference_hq"].get_t(
     #             entry["currentPriceDifferenceHQ"]) * WEIGHT_MIN_AVG_PRICE_DIFF
 
-sorted_nq_raw = sorted(univ_entries, key=lambda entry: entry["score_nq"], reverse=True)[:num_recommendations]
+sorted_nq_raw = sorted(univ_entries, key=lambda entry: entry["score_nq"], reverse=True)[
+    :num_recommendations
+]
 # sorted_hq_raw = sorted(univ_entries, key=lambda entry: entry["score_hq"])[:5]
 
 # Formatted for the tabulate library
-sorted_nq = {"Name": [], "Avg. Listing Price": [], "Avg. Sale Price": [], "Sales Per Day": [], "Avg - Min Listing Price": []}
+sorted_nq = {
+    "Name": [],
+    "Avg. Listing Price": [],
+    "Avg. Sale Price": [],
+    "Sales Per Day": [],
+    "Avg - Min Listing Price": [],
+}
 for entry in sorted_nq_raw:
     sorted_nq["Name"].append(entry["item_name"])
     sorted_nq["Avg. Listing Price"].append(entry["currentAveragePriceNQ"])
