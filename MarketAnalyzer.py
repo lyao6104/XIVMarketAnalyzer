@@ -4,7 +4,6 @@ import sqlite3
 import time
 import urllib.request as urllib
 from datetime import datetime
-from select import select
 from urllib.error import HTTPError
 
 from ratelimit import limits, sleep_and_retry

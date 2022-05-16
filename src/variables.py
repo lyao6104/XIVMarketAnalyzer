@@ -1,5 +1,4 @@
 import json
-from email import contentmanager
 
 variables_path = ""
 variables_store = {}
