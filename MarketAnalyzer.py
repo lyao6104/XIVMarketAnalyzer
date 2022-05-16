@@ -1,6 +1,7 @@
 from datetime import datetime
 import json
 import pathlib
+from select import select
 import sqlite3
 import time
 import urllib.request as urllib
@@ -17,6 +18,14 @@ WEIGHT_AVG_LISTING_PRICE = 25
 WEIGHT_AVG_SALE_PRICE = 50
 WEIGHT_SALE_VELOCITY = 50
 WEIGHT_MIN_AVG_PRICE_DIFF = 25
+ITEM_TYPES = [
+    "Gatherable",
+    "Painting",
+]
+
+#####
+# Utility Functions
+#####
 
 def dict_factory(cursor, row):
 # From the sqlite3 documentation
@@ -77,6 +86,10 @@ def query_item(item_id, world_name):
     
     return entry_data
 
+#####
+# Main Program
+#####
+
 sqlite3.register_adapter(datetime, lambda ts: time.mktime(ts.timetuple()))
 con = sqlite3.connect("market_analyzer.db")
 con.row_factory = dict_factory
@@ -92,37 +105,61 @@ if flag_update_db:
     last_update_time = str(datetime.now())
 variables.set_variable("lastUpdateTime", last_update_time)
 
-# Check whether database exists
-if cur.execute("select count(name) as count from gathering_items").fetchone()['count'] < 1:
-    print("Error: Gathering item database is empty. Exiting...")
-    exit()
-else:
-    print("Successfully connected to database.")
+selected_item_type = -1
+while selected_item_type < 0 or selected_item_type >= len(ITEM_TYPES):
+    print("Please select an item category from the following:")
+    for i in range(1, len(ITEM_TYPES) + 1):
+        print(f"  {i}. {ITEM_TYPES[i - 1]}")
+    try:
+        selected_item_type = int(input(f"Enter your selection (1 to {len(ITEM_TYPES)}): ")) - 1
+    except ValueError:
+        print("Please enter a number.")
+items = []
 
-# Get min and max gathering level for filtering items.
-min_level = 1
-try:
-    level = int(input("Enter minimum gathering level (Default: 1): "))
-    min_level = clamp(level, 1, 90)
-except ValueError:
-    pass
+# Gathering
+if selected_item_type == 0:
+    # Check whether gathering database exists
+    if cur.execute("select count(name) as count from gathering_items").fetchone()['count'] < 1:
+        print("Error: Gathering item database is empty. Exiting...")
+        exit()
+    else:
+        print("Successfully connected to gathering items database.")
 
-max_level = 90
-try:
-    level = int(input("Enter maximum gathering level (Default: 90): "))
-    max_level = clamp(level, 1, 90)
-except ValueError:
-    pass
+    # Get min and max gathering level for filtering items.
+    min_level = 1
+    try:
+        level = int(input("Enter minimum gathering level (Default: 1): "))
+        min_level = clamp(level, 1, 90)
+    except ValueError:
+        pass
 
-if min_level > max_level:
-    min_level, max_level = max_level, min_level
-    print("Automatically swapped minimum and maximum level.")
+    max_level = 90
+    try:
+        level = int(input("Enter maximum gathering level (Default: 90): "))
+        max_level = clamp(level, 1, 90)
+    except ValueError:
+        pass
 
-items = cur.execute(
-    "select item_id from gathering_items where gathering_level >= ? and gathering_level <= ?",
-    (min_level,
-     max_level)).fetchall()
-print(f"Found {len(items)} items between Level {min_level} and Level {max_level}")
+    if min_level > max_level:
+        min_level, max_level = max_level, min_level
+        print("Automatically swapped minimum and maximum level.")
+
+    items = cur.execute(
+        "select item_id from gathering_items where gathering_level >= ? and gathering_level <= ?",
+        (min_level,
+        max_level)).fetchall()
+    print(f"Found {len(items)} gatherable items between Level {min_level} and Level {max_level}")
+# Paintings
+elif selected_item_type == 1:
+    # Check whether paintings database exists
+    if cur.execute("select count(name) as count from painting_items").fetchone()['count'] < 1:
+        print("Error: Paintings database is empty. Exiting...")
+        exit()
+    else:
+        print("Successfully connected to paintings database.")
+
+    items = cur.execute("select item_id from painting_items").fetchall()
+    print(f"Found {len(items)} paintings.")
 
 world_name = input("Enter name of World or Data Centre (Default: Faerie): ")
 if len(world_name) < 1:
