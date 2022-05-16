@@ -13,7 +13,10 @@ from tabulate import tabulate
 import src.variables as variables
 from src.util import *
 
+#####
 # Constants
+#####
+
 WEIGHT_AVG_LISTING_PRICE = 25
 WEIGHT_AVG_SALE_PRICE = 50
 WEIGHT_SALE_VELOCITY = 50
@@ -52,7 +55,7 @@ def query_items(item_tuples, world_name, batch_size=20):
         batch = {item_id: item_name for item_id, item_name in batches[i]}
         print(f"Querying Universalis for Batch {i + 1}...")
         listings_request = urllib.Request(
-            f"https://universalis.app/api/{world_name}/{','.join(batch.keys())}?entries=100"
+            f"https://universalis.app/api/{world_name}/{','.join((map(str, batch.keys())))}?entries=100"
         )
         listings_request.add_header("User-Agent", "&lt;User-Agent&gt;")
         try:
@@ -62,9 +65,9 @@ def query_items(item_tuples, world_name, batch_size=20):
             continue
         failed_items = listings_response["unresolvedItems"]
         if len(failed_items) > 0:
-            print(f"Failed to retrieve data for {len(failed_items)} items:")
+            print(f"- Failed to retrieve data for {len(failed_items)} items:")
             for item in failed_items:
-                print(f"- Item {item}: {batch[item]}")
+                print(f"  - Item {item}: {batch[item]}")
         else:
             print("- Successfully found listing data for all items in batch:")
 
@@ -85,12 +88,12 @@ def query_items(item_tuples, world_name, batch_size=20):
             )
             entries.append(entry_data)
             print(
-                f"  - Found listing data for {entry_data['item_id']}: {entry_data['item_name']}"
+                f"  - Found listing data for Item {entry_data['item_id']}: {entry_data['item_name']}"
             )
 
         # Sale velocities are kind of weird, so we need to make a separate request for historical data.
         sale_request = urllib.Request(
-            f"https://universalis.app/api/history/{world_name}/{','.join(batch.keys())}"
+            f"https://universalis.app/api/history/{world_name}/{','.join((map(str, batch.keys())))}"
         )
         sale_request.add_header("User-Agent", "&lt;User-Agent&gt;")
         try:
@@ -105,15 +108,15 @@ def query_items(item_tuples, world_name, batch_size=20):
         # Set velocities to zero for all failed items
         failed_items = set(sale_response["unresolvedItems"])
         if len(failed_items) > 0:
-            print(f"Failed to retrieve sales data for {len(failed_items)} items:")
+            print(f"- Failed to retrieve sales data for {len(failed_items)} items:")
             for item in failed_items:
-                print(f"- Item {item}: {batch[item]}")
+                print(f"  - Item {item}: {batch[item]}")
             for i in range(0, len(entries)):
                 if entries[i]["item_id"] in failed_items:
                     entries[i]["nqSaleVelocity"] = 0
                     entries[i]["hqSaleVelocity"] = 0
         else:
-            print("- Successfully found sales data for all items in batch:")
+            print("- Successfully found sales data for all items in batch.")
 
         # Annotate entries with sales data
         sale_data = {
@@ -121,7 +124,7 @@ def query_items(item_tuples, world_name, batch_size=20):
                 "nqSaleVelocity": item_data["nqSaleVelocity"],
                 "hqSaleVelocity": item_data["hqSaleVelocity"],
             }
-            for item_data in sale_response[items]
+            for item_data in sale_response["items"]
         }
         for i in range(0, len(entries)):
             if entries[i].get("nqSaleVelocity") is None:
@@ -256,9 +259,10 @@ if selected_item_type == 0:
         print("Automatically swapped minimum and maximum level.")
 
     items = cur.execute(
-        "select item_id, item_name from gathering_items where gathering_level >= ? and gathering_level <= ?",
+        "select item_id, name from gathering_items where gathering_level >= ? and gathering_level <= ?",
         (min_level, max_level),
     ).fetchall()
+    items = list(map(lambda item: (item["item_id"], item["name"]), items))
     print(
         f"Found {len(items)} gatherable items between Level {min_level} and Level {max_level}"
     )
@@ -276,7 +280,8 @@ elif selected_item_type == 1:
     else:
         print("Successfully connected to paintings database.")
 
-    items = cur.execute("select item_id, item_name from painting_items").fetchall()
+    items = cur.execute("select item_id, name from painting_items").fetchall()
+    items = list(map(lambda item: (item["item_id"], item["name"]), items))
     print(f"Found {len(items)} paintings.")
 
 world_name = input("Enter name of World or Data Centre (Default: Faerie): ")
@@ -294,7 +299,7 @@ except ValueError:
 # Gathering items don't have high-quality versions anymore, so a lot of those are going to be commented out.
 # I might still use this for other stuff though, so it's not going to be removed entirely.
 
-print("Making Universalis requests...")
+print("\nMaking Universalis requests...\n")
 univ_entries = []
 entry_minmaxes = {
     "listing_price_nq": MinMax(),
@@ -306,8 +311,8 @@ entry_minmaxes = {
     "velocity_hq": MinMax(),
     "difference_hq": MinMax(),
 }
-for item in items:
-    entry = query_item(item["item_id"], world_name)
+entries = query_items(items, world_name)
+for entry in entries:
     if entry == {}:
         continue
     univ_entries.append(entry)
@@ -325,10 +330,10 @@ for item in items:
     # entry_minmaxes["difference_hq"].add_value(entry["currentPriceDifferenceHQ"])
 
 if len(univ_entries) < 1:
-    print("Error: No results found. Exiting...")
+    print("\nError: No results found. Exiting...")
     exit()
 else:
-    print(f"Successfully found results for {len(univ_entries)} items.")
+    print(f"\nSuccessfully found results for {len(univ_entries)} items.")
 
 for entry in univ_entries:
     entry["score_nq"] = (
