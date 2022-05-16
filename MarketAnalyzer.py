@@ -36,21 +36,93 @@ def dict_factory(cursor, row):
 
 @sleep_and_retry
 @limits(20, 1)
-def query_item(item_id, world_name):
-# Query XIVAPI and Universalis at a maximum of 20 calls per second
-    print(f"Querying Item {item_id}...")
-    entry_data = {}
+def query_items(item_tuples, world_name, batch_size = 20):
+# Query Universalis for multiple items at once at a maximum of 20 calls per second
+    batches = []
+    entries = [] # [ { "item_name": item_name } for item_id, item_name in item_tuples ]
+    while len(item_tuples) > 0:
+        batches.append(item_tuples[:batch_size])
+        item_tuples = item_tuples[batch_size:]
+    print(f"Querying {len(batches)} batches of {batch_size} items each...")
 
-    # Get item name from XIVAPI
-    xiv_request = urllib.Request(f"https://xivapi.com/item/{item_id}?columns=Name")
-    xiv_request.add_header('User-Agent', '&lt;User-Agent&gt;')
-    try:
-        xiv_data = json.loads(urllib.urlopen(xiv_request).read())
-    except HTTPError:
-        print("- Item not found on XIVAPI. Skipping...")
-        return {}
-    entry_data["item_name"] = xiv_data["Name"]
-    print(f"- Found Item {item_id}: {xiv_data['Name']} from XIVAPI...")
+    # Get listing data from Universalis
+    for i in range(0, len(batches)):
+        batch = { item_id: item_name for item_id, item_name in batches[i] }
+        print(f"Querying Universalis for Batch {i + 1}...")
+        listings_request = urllib.Request(f"https://universalis.app/api/{world_name}/{','.join(batch.keys())}?entries=100")
+        listings_request.add_header('User-Agent', '&lt;User-Agent&gt;')
+        try:
+            listings_response = json.loads(urllib.urlopen(listings_request).read())
+        except HTTPError:
+            print("- Listings request failed. Skipping batch...")
+            continue
+        failed_items = listings_response["unresolvedItems"]
+        if len(failed_items) > 0:
+            print(f"Failed to retrieve data for {len(failed_items)} items:")
+            for item in failed_items:
+                print(f"- Item {item}: {batch[item]}")
+        else:
+            print("- Successfully found listing data for all items in batch:")
+
+        for listing_data in listings_response["items"]:
+            entry_data = { "item_id": listing_data["itemID"], "item_name": batch[listing_data["itemID"]] }
+            entry_data["currentAveragePriceNQ"] = listing_data["currentAveragePriceNQ"]
+            entry_data["averagePriceNQ"] = listing_data["averagePriceNQ"]
+            entry_data["currentPriceDifferenceNQ"] = listing_data["currentAveragePriceNQ"] - listing_data["minPriceNQ"]
+            entry_data["currentAveragePriceHQ"] = listing_data["currentAveragePriceHQ"]
+            entry_data["averagePriceHQ"] = listing_data["averagePriceHQ"]
+            entry_data["currentPriceDifferenceHQ"] = listing_data["currentAveragePriceHQ"] - listing_data["minPriceHQ"]
+            entries.append(entry_data)
+            print(f"  - Found listing data for {entry_data['item_id']}: {entry_data['item_name']}")
+
+        # Sale velocities are kind of weird, so we need to make a separate request for historical data.
+        sale_request = urllib.Request(f"https://universalis.app/api/history/{world_name}/{','.join(batch.keys())}")
+        sale_request.add_header('User-Agent', '&lt;User-Agent&gt;')
+        try:
+            sale_response = json.loads(urllib.urlopen(sale_request).read())
+        # A 404 response should only happen if the world name is wrong
+        except HTTPError:
+            for i in range(0, len(entries)):
+                entries[i]["nqSaleVelocity"] = 0
+                entries[i]["hqSaleVelocity"] = 0
+            print("- Warning: Failed to obtain sale data from Universalis.")
+            continue
+        # Set velocities to zero for all failed items
+        failed_items = set(sale_response["unresolvedItems"])
+        if len(failed_items) > 0:
+            print(f"Failed to retrieve sales data for {len(failed_items)} items:")
+            for item in failed_items:
+                print(f"- Item {item}: {batch[item]}")
+            for i in range(0, len(entries)):
+                if entries[i]["item_id"] in failed_items:
+                    entries[i]["nqSaleVelocity"] = 0
+                    entries[i]["hqSaleVelocity"] = 0
+        else:
+            print("- Successfully found sales data for all items in batch:")
+
+        # Annotate entries with sales data
+        sale_data = {
+            item_data["itemID"]: {
+                "nqSaleVelocity": item_data["nqSaleVelocity"],
+                "hqSaleVelocity": item_data["hqSaleVelocity"],
+            }
+            for item_data in sale_response[items]
+        }
+        for i in range(0, len(entries)):
+            if entries[i].get("nqSaleVelocity") is None:
+                entries[i]["nqSaleVelocity"] = sale_data[entries[i]["item_id"]]["nqSaleVelocity"]
+            if entries[i].get("hqSaleVelocity") is None:
+                entries[i]["hqSaleVelocity"] = sale_data[entries[i]["item_id"]]["hqSaleVelocity"]
+    
+    return entries
+
+@sleep_and_retry
+@limits(20, 1)
+def query_item(item_tuple, world_name):
+# Query Universalis at a maximum of 20 calls per second
+    item_id, item_name = item_tuple
+    print(f"Querying Item {item_id}: {item_name}...")
+    entry_data = { "item_name": item_name }
 
     # Get listing data from Universalis
     listing_request = urllib.Request(
@@ -145,7 +217,7 @@ if selected_item_type == 0:
         print("Automatically swapped minimum and maximum level.")
 
     items = cur.execute(
-        "select item_id from gathering_items where gathering_level >= ? and gathering_level <= ?",
+        "select item_id, item_name from gathering_items where gathering_level >= ? and gathering_level <= ?",
         (min_level,
         max_level)).fetchall()
     print(f"Found {len(items)} gatherable items between Level {min_level} and Level {max_level}")
@@ -158,7 +230,7 @@ elif selected_item_type == 1:
     else:
         print("Successfully connected to paintings database.")
 
-    items = cur.execute("select item_id from painting_items").fetchall()
+    items = cur.execute("select item_id, item_name from painting_items").fetchall()
     print(f"Found {len(items)} paintings.")
 
 world_name = input("Enter name of World or Data Centre (Default: Faerie): ")
