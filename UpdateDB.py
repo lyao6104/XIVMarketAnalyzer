@@ -1,8 +1,9 @@
-import urllib.request as urllib
 import json
 import sqlite3
-from ratelimit import limits, sleep_and_retry
+import urllib.request as urllib
 from typing import List
+
+from ratelimit import limits, sleep_and_retry
 
 
 def dict_factory(cursor, row):

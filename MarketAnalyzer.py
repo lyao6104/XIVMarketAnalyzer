@@ -1,17 +1,17 @@
-from datetime import datetime
 import json
 import pathlib
-from select import select
 import sqlite3
 import time
 import urllib.request as urllib
+from datetime import datetime
+from select import select
 from urllib.error import HTTPError
 
 from ratelimit import limits, sleep_and_retry
 from tabulate import tabulate
 
-from src.util import *
 import src.variables as variables
+from src.util import *
 
 # Constants
 WEIGHT_AVG_LISTING_PRICE = 25
