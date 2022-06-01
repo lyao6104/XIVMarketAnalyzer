@@ -23,6 +23,7 @@ WEIGHT_MIN_AVG_PRICE_DIFF = 25
 ITEM_TYPES = [
     "Gatherable",
     "Painting",
+    "Orchestrion Roll",
 ]
 
 #####
@@ -282,6 +283,23 @@ elif selected_item_type == 1:
     items = cur.execute("select item_id, name from painting_items").fetchall()
     items = list(map(lambda item: (item["item_id"], item["name"]), items))
     print(f"Found {len(items)} paintings.")
+# Orchestrion Rolls
+elif selected_item_type == 2:
+    # Check whether database exists
+    if (
+        cur.execute("select count(name) as count from orchestrion_roll_items").fetchone()[
+            "count"
+        ]
+        < 1
+    ):
+        print("Error: Orchestrion Roll database is empty. Exiting...")
+        exit()
+    else:
+        print("Successfully connected to orchestrion roll database.")
+
+    items = cur.execute("select item_id, name from orchestrion_roll_items").fetchall()
+    items = list(map(lambda item: (item["item_id"], item["name"]), items))
+    print(f"Found {len(items)} orchestrion rolls.")
 
 world_name = input("Enter name of World or Data Centre (Default: Faerie): ")
 if len(world_name) < 1:
