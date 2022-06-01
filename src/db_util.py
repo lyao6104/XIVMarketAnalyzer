@@ -122,8 +122,6 @@ def get_item_ids(base_url: str, params: List[str], name: str) -> List[int]:
 
 
 def update_db() -> None:
-    gi_ids = set(get_item_ids("https://xivapi.com/gatheringitem", [], "GatheringItem"))
-
     # Used to check which items are actually marketable from Universalis
     univ_request = urllib.Request("https://universalis.app/api/marketable")
     univ_request.add_header("User-Agent", "&lt;User-Agent&gt;")
@@ -135,6 +133,7 @@ def update_db() -> None:
 
     if input("Update GatheringItem database (Y/n)? ").lower() != "n":
         print("Building GatheringItem database...")
+        gi_ids = set(get_item_ids("https://xivapi.com/gatheringitem", [], "GatheringItem"))
 
         cur.execute("drop table if exists gathering_items")
         cur.execute(
