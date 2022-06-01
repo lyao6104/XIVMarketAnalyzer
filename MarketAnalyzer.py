@@ -9,6 +9,7 @@ from urllib.error import HTTPError
 from ratelimit import limits, sleep_and_retry
 from tabulate import tabulate
 
+import src.db_util as db
 import src.variables as variables
 from src.util import *
 
@@ -210,6 +211,7 @@ flag_update_db = (
 )
 if flag_update_db:
     last_update_time = str(datetime.now())
+    db.update_db()
 variables.set_variable("lastUpdateTime", last_update_time)
 
 selected_item_type = -1
@@ -287,9 +289,9 @@ elif selected_item_type == 1:
 elif selected_item_type == 2:
     # Check whether database exists
     if (
-        cur.execute("select count(name) as count from orchestrion_roll_items").fetchone()[
-            "count"
-        ]
+        cur.execute(
+            "select count(name) as count from orchestrion_roll_items"
+        ).fetchone()["count"]
         < 1
     ):
         print("Error: Orchestrion Roll database is empty. Exiting...")
