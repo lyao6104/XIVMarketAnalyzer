@@ -194,4 +194,40 @@ def update_db() -> None:
 
         con.commit()
 
+    if input("Update Orchestrion Roll database (Y/n)? ").lower() != "n":
+        print("Building Orchestrion Roll database...")
+        orchestrion_roll_ids = set(
+            get_item_ids(
+                "https://xivapi.com/search",
+                ["filters=ItemUICategory.ID=94"],
+                "Orchestrion Roll",
+            )
+        )
+
+        cur.execute("drop table if exists orchestrion_roll_items")
+        cur.execute(
+            "create table orchestrion_roll_items (name text, item_id integer primary key)"
+        )
+        orchestrion_roll_items = query_regular_items(list(orchestrion_roll_ids))
+        for orchestrion_roll in orchestrion_roll_items:
+            if not "name" in orchestrion_roll or not "item_id" in orchestrion_roll:
+                continue
+            if not orchestrion_roll["item_id"] in univ_data:
+                continue
+            try:
+                cur.execute(
+                    "insert into orchestrion_roll_items values (?, ?)",
+                    (orchestrion_roll["name"], orchestrion_roll["item_id"]),
+                )
+            except sqlite3.IntegrityError:
+                print(
+                    f"- Skipping Item {orchestrion_roll['item_id']}: {orchestrion_roll['name']} as ID is taken."
+                )
+            else:
+                print(
+                    f"- Successfully added Item {orchestrion_roll['item_id']}: {orchestrion_roll['name']}."
+                )
+
+        con.commit()
+
     print("Finished setting up database.")
