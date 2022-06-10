@@ -1,11 +1,13 @@
 # XIVMarketAnalyzer
 
 Analyzes market board data from Final Fantasy XIV using Universalis and XIVAPI, then makes recommendations on what to sell.
+The script does **not** interact with the actual game in any way.
 
-Currently works for gatherable items and paintings.
+Currently works for gatherable items, paintings, and orchestrion rolls.
 
-To use, run `UpdateDB.py`, then the main file, `MarketAnalyzer.py`.
+To use, run `UpdateDB.py`, then the main file, `MarketAnalyzer.py`, assuming you have the required
+dependencies and Python 3 installed. You can also run the script using Pipenv or the provided Makefile.
 
 ## Dependencies
 
-Make sure you have the `ratelimit` and `tabulate` packages installed using pip.
+This project requires the `ratelime` and `tabulate` libraries for Python 3.
