@@ -135,7 +135,9 @@ def update_db() -> None:
 
     if input("Update GatheringItem database (Y/n)? ").lower() != "n":
         print("Building GatheringItem database...")
-        gi_ids = set(get_item_ids("https://xivapi.com/gatheringitem", [], "GatheringItem"))
+        gi_ids = set(
+            get_item_ids("https://xivapi.com/gatheringitem", [], "GatheringItem")
+        )
 
         cur.execute("drop table if exists gathering_items")
         cur.execute(
