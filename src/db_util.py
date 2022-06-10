@@ -21,7 +21,7 @@ def query_gathering_item(id):
     request = urllib.Request(
         f"https://xivapi.com/gatheringitem/{id}?columns=Item.Name,Item.ID,GatheringItemLevel.GatheringItemLevel"
     )
-    request.add_header("User-Agent", "&lt;User-Agent&gt;")
+    request.add_header("User-Agent", get_user_agent())
     data = json.loads(urllib.urlopen(request).read())
 
     try:
@@ -38,7 +38,7 @@ def query_gathering_item(id):
 @limits(20, 1)
 def query_regular_item(id):
     request = urllib.Request(f"https://xivapi.com/item/{id}?columns=Name,ID")
-    request.add_header("User-Agent", "&lt;User-Agent&gt;")
+    request.add_header("User-Agent", get_user_agent())
     data = json.loads(urllib.urlopen(request).read())
 
     try:
@@ -70,7 +70,7 @@ def query_regular_items(ids, batch_size=20):
         request = urllib.Request(
             f"https://xivapi.com/item?limit={batch_size}&ids={','.join(map(str, id_batch))}"
         )
-        request.add_header("User-Agent", "&lt;User-Agent&gt;")
+        request.add_header("User-Agent", get_user_agent())
         try:
             response = json.loads(urllib.urlopen(request).read())
         except HTTPError:
@@ -105,7 +105,7 @@ def get_item_ids(base_url: str, params: List[str], name: str) -> List[int]:
     print(f"Attempting to retrieve {name}s from XIVAPI")
     while cur_page is not None:
         request = urllib.Request(f"{base_url}?{params}&limit=3000?page={cur_page}")
-        request.add_header("User-Agent", "&lt;User-Agent&gt;")
+        request.add_header("User-Agent", get_user_agent())
         data = json.loads(urllib.urlopen(request).read())
         if len(data) < 1:
             print(f"Error: Failed to get {name}s from XIVAPI. Exiting...")
@@ -124,7 +124,7 @@ def get_item_ids(base_url: str, params: List[str], name: str) -> List[int]:
 def update_db() -> None:
     # Used to check which items are actually marketable from Universalis
     univ_request = urllib.Request("https://universalis.app/api/marketable")
-    univ_request.add_header("User-Agent", "&lt;User-Agent&gt;")
+    univ_request.add_header("User-Agent", get_user_agent())
     univ_data = set(json.loads(urllib.urlopen(univ_request).read()))
 
     con = sqlite3.connect("market_analyzer.db")

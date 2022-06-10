@@ -58,7 +58,7 @@ def query_items(item_tuples, world_name, batch_size=20):
         listings_request = urllib.Request(
             f"https://universalis.app/api/{world_name}/{','.join((map(str, batch.keys())))}?entries=100"
         )
-        listings_request.add_header("User-Agent", "&lt;User-Agent&gt;")
+        listings_request.add_header("User-Agent", get_user_agent())
         try:
             listings_response = json.loads(urllib.urlopen(listings_request).read())
         except HTTPError:
@@ -96,7 +96,7 @@ def query_items(item_tuples, world_name, batch_size=20):
         sale_request = urllib.Request(
             f"https://universalis.app/api/history/{world_name}/{','.join((map(str, batch.keys())))}"
         )
-        sale_request.add_header("User-Agent", "&lt;User-Agent&gt;")
+        sale_request.add_header("User-Agent", get_user_agent())
         try:
             sale_response = json.loads(urllib.urlopen(sale_request).read())
         # A 404 response should only happen if the world name is wrong
@@ -152,7 +152,7 @@ def query_item(item_tuple, world_name):
     listing_request = urllib.Request(
         f"https://universalis.app/api/{world_name}/{item_id}?entries=100"
     )
-    listing_request.add_header("User-Agent", "&lt;User-Agent&gt;")
+    listing_request.add_header("User-Agent", get_user_agent())
     try:
         listing_data = json.loads(urllib.urlopen(listing_request).read())
     except HTTPError:
@@ -174,7 +174,7 @@ def query_item(item_tuple, world_name):
     sale_request = urllib.Request(
         f"https://universalis.app/api/history/{world_name}/{item_id}"
     )
-    sale_request.add_header("User-Agent", "&lt;User-Agent&gt;")
+    sale_request.add_header("User-Agent", get_user_agent())
     try:
         sale_data = json.loads(urllib.urlopen(sale_request).read())
     except HTTPError:

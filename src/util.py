@@ -5,6 +5,13 @@ def clamp(v, minv, maxv):
     return max(minv, min(maxv, v))
 
 
+def get_user_agent() -> str:
+    """
+    Returns the user agent used by the script.
+    """
+    return "XIVMarketAnalyzer/1.0 https://github.com/lyao6104/XIVMarketAnalyzer"
+
+
 class MinMax(object):
     def __init__(self) -> None:
         self.minimum = 2**31
