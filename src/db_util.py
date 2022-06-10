@@ -6,6 +6,8 @@ from urllib.error import HTTPError
 
 from ratelimit import limits, sleep_and_retry
 
+from util import get_user_agent
+
 
 def dict_factory(cursor, row):
     # From the sqlite3 documentation
