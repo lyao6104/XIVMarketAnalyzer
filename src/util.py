@@ -2,6 +2,9 @@
 
 
 def clamp(v, minv, maxv):
+    """
+    Clamps a value between the given minimum and maximum.
+    """
     return max(minv, min(maxv, v))
 
 
@@ -13,9 +16,14 @@ def get_user_agent() -> str:
 
 
 class MinMax(object):
+    """
+    Class for easily calculating the minimum and maximum value in a collection,
+    as well as some additional utilities.
+    """
+
     def __init__(self) -> None:
-        self.minimum = 2**31
-        self.maximum = -(2**31)
+        self.minimum = float("inf")
+        self.maximum = float("-inf")
 
     def add_value(self, v) -> None:
         if v > self.maximum:
