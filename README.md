@@ -10,4 +10,4 @@ dependencies and Python 3 installed. You can also run the script using Pipenv or
 
 ## Dependencies
 
-This project requires the `ratelime` and `tabulate` libraries for Python 3.
+This project requires the `ratelimit` and `tabulate` libraries for Python 3.
