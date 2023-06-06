@@ -12,7 +12,7 @@ def get_user_agent() -> str:
     """
     Returns the user agent used by the script.
     """
-    return "XIVMarketAnalyzer/1.0 https://github.com/lyao6104/XIVMarketAnalyzer"
+    return "XIVMarketAnalyzer/1.0.1 https://github.com/lyao6104/XIVMarketAnalyzer"
 
 
 class MinMax(object):

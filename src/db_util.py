@@ -6,7 +6,7 @@ from urllib.error import HTTPError
 
 from ratelimit import limits, sleep_and_retry
 
-from util import get_user_agent
+from .util import get_user_agent
 
 
 def dict_factory(cursor, row):
@@ -34,6 +34,53 @@ def query_gathering_item(id):
         return out_data
     except TypeError:
         return {}
+
+
+@sleep_and_retry
+@limits(20, 1)
+def query_gathering_items(ids, batch_size=20):
+    batches = []
+    entries = []
+    while len(ids) > 0:
+        batches.append(ids[:batch_size])
+        ids = ids[batch_size:]
+    print(f"Querying {len(batches)} batches of {batch_size} items each...")
+
+    for i in range(0, len(batches)):
+        id_batch = batches[i]
+        print(f"- Querying XIVAPI for Batch {i + 1}...")
+
+        request = urllib.Request(
+            # TODO Could probably format "columns" in a better way
+            f"https://xivapi.com/gatheringitem?limit={batch_size}&ids={','.join(map(str, id_batch))}&columns=Item.Name,Item.ID,GatheringItemLevel.GatheringItemLevel"
+        )
+        request.add_header("User-Agent", get_user_agent())
+        try:
+            response = json.loads(urllib.urlopen(request).read())
+        except HTTPError:
+            print("  - Request failed. Skipping batch...")
+            continue
+        if False in response["Results"]:
+            print(
+                f"  - Failed to retrieve data for {response['Results'].count(False)} items."
+            )
+        else:
+            print("  - Successfully found item data for all items in batch:")
+
+        for item in response["Results"]:
+            if not item:
+                continue
+
+            entry_data = {
+                "item_id": item["Item"]["ID"],
+                "name": item["Item"]["Name"],
+                "gathering_level": item["GatheringItemLevel"]["GatheringItemLevel"],
+            }
+            entries.append(entry_data)
+            print(
+                f"    - Found data for Item {entry_data['item_id']}: {entry_data['name']}, {entry_data['gathering_level']}"
+            )
+    return entries
 
 
 @sleep_and_retry
@@ -143,8 +190,8 @@ def update_db() -> None:
         cur.execute(
             "create table gathering_items (name text, item_id integer primary key, gathering_level integer)"
         )
-        for gi_id in gi_ids:
-            gi = query_gathering_item(gi_id)
+        gis = query_gathering_items(list(gi_ids))
+        for gi in gis:
             if not "name" in gi or not "item_id" in gi or not "gathering_level" in gi:
                 continue
             if not gi["item_id"] in univ_data:
